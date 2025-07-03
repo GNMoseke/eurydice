@@ -1,5 +1,9 @@
+use itertools::Itertools;
+use rusqlite::Connection;
+use std::collections::HashMap;
 use std::io::{BufReader, prelude::*};
 use std::net::TcpStream;
+use std::{env, fs, os, path};
 
 fn main() -> std::io::Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:6600")?;
@@ -13,14 +17,82 @@ fn main() -> std::io::Result<()> {
         panic!("Unknown connection string: {}", connect_ack)
     }
 
+    let data_path = env::var("XDG_DATA_HOME")
+        .unwrap_or(env::var("HOME").unwrap() + "/.local/share/")
+        + "eurydice/";
+    fs::create_dir_all(&data_path)?;
+    let db = Connection::open(data_path + "db.db3").unwrap();
+
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS tracks (
+            id INTEGER PRIMARY KEY,
+            title TEXT,
+            artist TEXT,
+            album TEXT,
+            lengthseconds REAL,
+            playcount INTEGER,
+            UNIQUE (title, artist, album)
+        )",
+        (),
+    )
+    .unwrap();
+
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS history (
+            timeunix INTEGER,
+            songid INTEGER,
+            FOREIGN KEY (songid) REFERENCES tracks(id)
+        )",
+        (),
+    )
+    .unwrap();
+
     loop {
         let new_song = wait_for_song_change(&mut stream);
-        handle_song_change(new_song);
+        handle_song_change(new_song, &db);
     }
+    //
+    // Ok(())
 }
 
-fn handle_song_change(new_song: String) {
+fn handle_song_change(new_song: String, db: &Connection) {
     println!("=== NEW SONG ===\n\n {}\n=== === === === ===", new_song);
+    let track_info: HashMap<String, String> = new_song
+        .trim()
+        .split('\n')
+        .dropping_back(1) // Drop the "OK"
+        .map(|l| {
+            l.split_once(':')
+                .map(|(a, b)| (a.trim().to_string(), b.trim().to_string()))
+                .unwrap()
+        })
+        .collect();
+    let mut song_change = db
+        .prepare(
+            "
+        INSERT INTO tracks(title,artist,album,lengthseconds,playcount)
+        VALUES (?1, ?2, ?3, ?4, 1)
+        ON CONFLICT(title,artist,album) DO UPDATE SET playcount=playcount+1
+        RETURNING id, playcount",
+        )
+        .unwrap();
+    song_change
+        .query_one(
+            [
+                &track_info["Title"],
+                &track_info["Artist"],
+                &track_info["Album"],
+                &track_info["duration"],
+            ],
+            |id| {
+                let retid: i32 = id.get(0).unwrap();
+                let count: i32 = id.get(1).unwrap();
+                println!("{:?}", retid);
+                println!("{:?}", count);
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn wait_for_song_change(stream: &mut TcpStream) -> String {

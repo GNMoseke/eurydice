@@ -6,6 +6,8 @@ depending on target length)
     playlist. If not given, default to either one album or 10 songs.
     * `--sameartist`: enforce that anything chosen has to be from the same artist (no-op
     if `album` option is given)
+    * `--interactive`: prompt with the playlist generated, ask to
+    confirm/regenerate/cancel
 * `stats`: More stats breakdown about most played tracks, artists, albums, etc in a small
   table
 * `daemon`: start the daemon half
@@ -14,8 +16,15 @@ depending on target length)
 `tracks` table:
 
 ```
-name | artist | album | length (s) | plays
+id | title | artist | album | length (s) | plays
 ```
+
+`history` table:
+```
+time | song_id (fk->tracks)
+```
+
+
 
 # TODO
 - [ ] Daemon half
