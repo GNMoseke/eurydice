@@ -5,6 +5,7 @@ use std::net::TcpStream;
 use std::{env, fs};
 
 mod daemon;
+mod surprise_me;
 
 #[derive(Debug, Parser)]
 #[command(version, about="Rediscover your muisc.", long_about = None)]
@@ -85,7 +86,8 @@ fn main() -> std::io::Result<()> {
                 println!("album of count {:?}", count)
             }
             SurpriseMeCommand::Playlist { target_length } => {
-                println!("playlist of length {:?}", target_length)
+                let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist);
+                tracks.iter().for_each(|t| println!("{:?} - {:?}", t.title, t.album));
             }
         },
     }
