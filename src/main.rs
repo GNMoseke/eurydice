@@ -102,6 +102,7 @@ fn setup_db(db: &Connection) -> std::result::Result<(), rusqlite::Error> {
             album TEXT,
             lengthseconds REAL,
             playcount INTEGER,
+            path TEXT,
             UNIQUE (title, artist, album)
         )",
         (),
