@@ -7,3 +7,4 @@ license = "MIT"
 [dependencies]
 rusqlite = { version = "0.36.0", features = ["bundled"] }
 itertools = "0.14.0"
+clap = { version = "4.5.40", features = ["derive"] }
