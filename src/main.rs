@@ -20,9 +20,6 @@ enum Commands {
     SurpriseMe {
         #[command(subcommand)]
         opt: SurpriseMeCommand,
-
-        #[arg(short, long, default_value_t = false)]
-        same_artist: bool,
     },
     Stats,
     Daemon,
@@ -37,6 +34,9 @@ enum SurpriseMeCommand {
     Playlist {
         #[arg(short, long, help = "Length of playlist to build, in minutes")]
         target_length: Option<f32>,
+
+        #[arg(short, long, default_value_t = false)]
+        same_artist: bool,
     },
 }
 
@@ -78,16 +78,18 @@ fn main() -> std::io::Result<()> {
             let new_song = daemon::wait_for_song_change(&mut stream);
             daemon::handle_song_change(new_song, &db);
         },
-        Commands::SurpriseMe {
-            opt,
-            same_artist,
-        } => match opt {
+        Commands::SurpriseMe { opt } => match opt {
             SurpriseMeCommand::Album { count } => {
-                println!("album of count {:?}", count)
+                let tracks = surprise_me::create_album_playlist(&db, count);
+                tracks
+                    .iter()
+                    .for_each(|t| println!("{:?} - {:?}", t.title, t.album));
             }
-            SurpriseMeCommand::Playlist { target_length } => {
+            SurpriseMeCommand::Playlist { target_length, same_artist } => {
                 let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist);
-                tracks.iter().for_each(|t| println!("{:?} - {:?}", t.title, t.album));
+                tracks
+                    .iter()
+                    .for_each(|t| println!("{:?} - {:?}", t.title, t.album));
             }
         },
     }

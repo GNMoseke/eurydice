@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use rusqlite::{Connection, Statement};
+use rusqlite::Connection;
 
 pub(crate) fn create_track_playlist(
     db: &Connection,
@@ -11,10 +11,18 @@ pub(crate) fn create_track_playlist(
     println!("playlist of length {:?}", target_length);
 
     // TODO: I'm sure there's a way to do this greedy calculation in sqlite itself
+    // FIXME: I've hardcoded 300 as the limit here intentionally since it gives me a decent
+    // boundary for having enough songs (works out to ~12hrs of tracks even with wide variance in
+    // length). I should probably do something less dumb (see above for greedy calculation in
+    // sqlite)
+    // NOTE: I'm just using the average play count as a marker here (choosing things with below
+    // average plays). It may be statistically more satisfying to use the median, but that's not
+    // built in to sqlite and I can't imagine in a real scenario playing one song so much that it
+    // skews the average.
     let query_str =
         "select * from
             (select title,artist,album,path,lengthseconds from tracks where playcount <= (select avg(playcount) from tracks) limit 300)
-        order by random();"
+        order by random()"
             .to_string();
 
     let mut query = db.prepare(query_str.as_str()).unwrap();
@@ -54,25 +62,34 @@ pub(crate) fn create_track_playlist(
         .collect()
 }
 
-pub(crate) fn create_album_playlist(
-    db: &Connection,
-    count: Option<u16>,
-    same_artist: bool,
-) -> Vec<SelectedTrack> {
+pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<SelectedTrack> {
     // Default to one album
     let count = count.unwrap_or(1);
     println!("playist with {:?} album(s)", count);
 
-    let mut query_str = "
-        SELECT t1.title,t1.artist,t1.album,t1.path FROM tracks t1 INNER JOIN tracks t2 on t2.id=t1.id
-        GROUP BY t1.id HAVING sum(t2.lengthseconds) <= 3600 ORDER BY t1.playcount".to_string();
-
-    if same_artist {
-        query_str += ",t1.artist";
-    }
+    // get a random set of low played albums
+    let query_str = "select distinct album from tracks 
+            where playcount <= (select avg(playcount) from tracks) and album != 'Unknown Album' 
+            order by random() limit ?1;"
+        .to_string();
 
     let mut query = db.prepare(query_str.as_str()).unwrap();
-    query
+    let album_names: Vec<String> = query
+        .query_map([&count], |row| Ok(row.get(0).unwrap()))
+        .unwrap()
+        .flatten()
+        .collect();
+
+    // and now query for the actual tracks
+    let query_str = "select title,artist,album,path,lengthseconds from tracks where album in ("
+        .to_string()
+        + &album_names
+            .iter()
+            .map(|a| "'".to_string() + a + "'")
+            .join(",")
+        + ")";
+    db.prepare(query_str.as_str())
+        .unwrap()
         .query_map([], |row| {
             Ok(SelectedTrack {
                 title: row.get(0)?,
@@ -90,8 +107,8 @@ pub(crate) fn create_album_playlist(
 #[derive(Debug, Clone)]
 pub(crate) struct SelectedTrack {
     pub(crate) title: String,
-    pub(crate) artist: String,
+    artist: String,
     pub(crate) album: String,
-    pub(crate) path: String,
-    pub(crate) length: f32,
+    path: String,
+    length: f32,
 }
