@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use itertools::Itertools;
 use rusqlite::Connection;
 use std::io::{BufReader, prelude::*};
 use std::net::TcpStream;
@@ -84,17 +85,43 @@ fn main() -> std::io::Result<()> {
                 tracks
                     .iter()
                     .for_each(|t| println!("{:?} - {:?}", t.title, t.album));
+                add_to_queue(tracks, &mut stream);
             }
-            SurpriseMeCommand::Playlist { target_length, same_artist } => {
+            SurpriseMeCommand::Playlist {
+                target_length,
+                same_artist,
+            } => {
                 let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist);
                 tracks
                     .iter()
                     .for_each(|t| println!("{:?} - {:?}", t.title, t.album));
+                add_to_queue(tracks, &mut stream);
             }
         },
     }
 
     Ok(())
+}
+
+fn add_to_queue(tracks: Vec<surprise_me::SelectedTrack>, stream: &mut TcpStream) {
+    stream.write_all("command_list_begin\n".as_bytes()).unwrap();
+    stream
+        .write_all(
+            (tracks
+                .iter()
+                .map(|t| "add \"".to_string() + &t.path + "\"")
+                .join("\n")
+                + "\n")
+                .as_bytes(),
+        )
+        .unwrap();
+    stream.write_all("command_list_end\n".as_bytes()).unwrap();
+    stream.flush().unwrap();
+
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let recv = reader.fill_buf().unwrap().to_vec();
+    reader.consume(recv.len());
+    println!("{}", String::from_utf8(recv).unwrap())
 }
 
 fn setup_db(db: &Connection) -> std::result::Result<(), rusqlite::Error> {

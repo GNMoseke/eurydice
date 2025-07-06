@@ -109,6 +109,6 @@ pub(crate) struct SelectedTrack {
     pub(crate) title: String,
     artist: String,
     pub(crate) album: String,
-    path: String,
+    pub(crate) path: String,
     length: f32,
 }
