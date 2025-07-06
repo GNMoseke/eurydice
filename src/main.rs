@@ -8,7 +8,15 @@ mod mpd_client;
 mod surprise_me;
 
 #[derive(Debug, Parser)]
-#[command(version, about="Rediscover your muisc.", long_about = None)]
+#[command(
+    version,
+    about = "Rediscover your muisc.",
+    long_about = "
+eurydice is a small sidecar client to MPD that simply records track listen history and can be used
+to generate a random playlist of less frequently played music, either as a \"mixtape\" of tracks or
+as entire albums. 
+"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -17,25 +25,39 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     #[command(arg_required_else_help = true)]
+    #[command(about = "Queue up a set of less-played tracks or albums")]
     SurpriseMe {
         #[command(subcommand)]
         opt: SurpriseMeCommand,
     },
+    #[command(about = "WIP")]
     Stats,
+    #[command(about = "Start the eurydice daemon to record MPD play history.")]
     Daemon,
 }
 
 #[derive(Debug, Subcommand)]
 enum SurpriseMeCommand {
+    #[command(about = "Add one or more less-played albums to your queue")]
     Album {
-        #[arg(short, long, help = "Number of albums to queue up")]
+        #[arg(
+            short,
+            long,
+            help = "Number of albums to queue up. If not given, one album will be added to the queue."
+        )]
         count: Option<u16>,
     },
+    #[command(about = "Add a \"mixtape\" of less-played songs to your queue")]
     Playlist {
         #[arg(short, long, help = "Length of playlist to build, in minutes")]
         target_length: Option<f32>,
 
-        #[arg(short, long, default_value_t = false)]
+        #[arg(
+            short,
+            long,
+            default_value_t = false,
+            help = "Enforce that all tracks must come from the same artist (which will be selected randomly)"
+        )]
         same_artist: bool,
     },
 }
@@ -61,7 +83,9 @@ fn main() -> std::io::Result<()> {
 
     match args.command {
         Commands::Stats => {
-            println!("stats")
+            println!(
+                "Stats have not been implemented yet. Here's a free stat as pennance: only 7 people have run a marathon in 2:05 or less."
+            )
         }
         Commands::Daemon => loop {
             let new_song = daemon::wait_for_song_change(&mut client);
