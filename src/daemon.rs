@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use std::collections::HashMap;
 use std::env;
 use std::io::{BufReader, prelude::*};
-use std::net::TcpStream;
+use std::os::unix::net::UnixStream;
 
 pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
     let track_info: HashMap<String, String> = new_song
@@ -25,8 +25,11 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
         RETURNING id",
         )
         .unwrap();
+
     // queue is empty, we can just break
     if track_info.is_empty() { return }
+
+    // FIXME: use `config` message here to pull the 'music_directory'
     let full_path = env::var("HOME").unwrap() + "/Music/" + &track_info["file"].to_string();
     song_change
         .query_one(
@@ -47,7 +50,7 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
         .unwrap();
 }
 
-pub(crate) fn wait_for_song_change(stream: &mut TcpStream) -> String {
+pub(crate) fn wait_for_song_change(stream: &mut UnixStream) -> String {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     stream.write_all("currentsong\n".as_bytes()).unwrap();
     let recv = reader.fill_buf().unwrap().to_vec();
@@ -69,6 +72,7 @@ pub(crate) fn wait_for_song_change(stream: &mut TcpStream) -> String {
                 recv = reader.fill_buf().unwrap().to_vec();
                 reader.consume(recv.len());
                 current_song = String::from_utf8(recv).unwrap();
+                println!("{}", current_song);
             }
             val if val.contains("ACK") => {
                 println!("Unexpected MPD error: {:?}", val)

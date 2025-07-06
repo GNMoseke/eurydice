@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use itertools::Itertools;
 use rusqlite::Connection;
 use std::io::{BufReader, prelude::*};
-use std::net::TcpStream;
+use std::os::unix::net::UnixStream;
 use std::{env, fs};
 
 mod daemon;
@@ -42,10 +42,12 @@ enum SurpriseMeCommand {
 }
 
 fn main() -> std::io::Result<()> {
-    let mut stream = TcpStream::connect(
-        env::var("MPD_HOST").unwrap_or("localhost".to_string())
-            + ":"
-            + &env::var("MPD_PORT").unwrap_or("6600".to_string()),
+    // NOTE: MUST use a unix socket to manage the queue locally. This is "documented" in the mpd
+    // protocal manual here: https://mpd.readthedocs.io/en/latest/client.html#introduction
+    // where "local socket" means "unix socket".
+    // See also: https://github.com/MusicPlayerDaemon/MPD/issues/2184
+    let mut stream = UnixStream::connect(
+        env::var("XDG_RUNTIME_DIR").unwrap_or("/run".to_string()) + "/mpd/socket",
     )?;
 
     let mut reader = BufReader::new(stream.try_clone().expect("MPD connection invalid"));
@@ -103,7 +105,7 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn add_to_queue(tracks: Vec<surprise_me::SelectedTrack>, stream: &mut TcpStream) {
+fn add_to_queue(tracks: Vec<surprise_me::SelectedTrack>, stream: &mut UnixStream) {
     stream.write_all("command_list_begin\n".as_bytes()).unwrap();
     stream
         .write_all(
