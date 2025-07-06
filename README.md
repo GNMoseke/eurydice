@@ -16,8 +16,8 @@ release mode and place it in your `~/.local/bin`
 
 ## systemd User Unit
 A [systemd user unit](https://wiki.archlinux.org/title/Systemd/User) file is included if
-you'd like to run eurydice that way. Simply copy this file to your user's systemd config
-directory and enable it:
+you'd like to run the eurydice daemon that way. Simply copy this file to your user's
+systemd config directory and enable it:
 
 ```sh
 cp eurydice.service ~/.config/systemd/user/eurydice.service
@@ -25,7 +25,7 @@ systemctl --user start eurydice.service # replace with 'enable' if desired
 ```
 
 # Storage/Backup
-eurydice keeps all of it's data in a single sqlite database file, which will be created at
+eurydice keeps all of its data in a single sqlite database file, which will be created at
 `$XDG_DATA_HOME/.local/share/eurydice/db.db3` if it doesn't already exist. To
 backup/snapshot the database, simply copy this file elsewhere, e.g:
 
