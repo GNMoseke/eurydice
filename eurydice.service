@@ -1,0 +1,23 @@
+[Unit]
+Description=An MPD sidecar for rediscovering music
+After=mpd.service
+
+[Service]
+Restart=always
+RestartSec=1
+Environment="RUST_LOG=info"
+ExecStart=%h/.local/bin/eurydice daemon
+
+# Taken from https://github.com/MusicPlayerDaemon/MPD/blob/master/systemd/system/mpd.service.in
+# disallow writing to /usr, /bin, /sbin, ...
+ProtectSystem=yes
+
+# more paranoid security settings
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+RestrictNamespaces=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -25,10 +25,10 @@ time | song_id (fk->tracks)
 
 
 # TODO
-- [ ] Daemon half
+- [x] Daemon half
     - [x] monitors mpd and writes stats on song update
     - [x] creates sqlite file if none exist
-    - [ ] add systemd file
+    - [x] add systemd file
 - [x] Command half
     - [x] Queries for appropriate combo of least played
     - [x] creates playlist
@@ -38,3 +38,4 @@ time | song_id (fk->tracks)
 - [ ] General
     - [x] Logging
     - [ ] Better error handling
+    - [ ] Add config (ignore certain music subdirs in daemon mode, etc)
