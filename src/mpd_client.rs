@@ -1,6 +1,7 @@
 use itertools::Itertools;
+use log::{debug, trace};
 use std::env;
-use std::io::{BufReader, prelude::*};
+use std::io::{prelude::*, BufReader};
 use std::os::unix::net::UnixStream;
 
 use crate::surprise_me;
@@ -12,6 +13,7 @@ pub(crate) struct MPDClient {
 
 impl MPDClient {
     pub(crate) fn connect() -> MPDClient {
+        debug!("Initializing MPD connection");
         // NOTE: MUST use a unix socket to manage the queue locally. This is "documented" in the mpd
         // protocal manual here: https://mpd.readthedocs.io/en/latest/client.html#introduction
         // where "local socket" means "unix socket".
@@ -35,7 +37,9 @@ impl MPDClient {
         MPDClient { stream, reader }
     }
 
-    pub(crate) fn add_to_queue(&mut self, tracks: Vec<surprise_me::SelectedTrack>) {
+    pub(crate) fn add_to_queue(&mut self, tracks: &Vec<surprise_me::SelectedTrack>) {
+        debug!("Adding {} tracks to queue", tracks.len());
+        trace!("Adding {}", tracks.iter().map(|t| t.path.clone()).join(","));
         let command = "command_list_begin\n".to_owned()
             + &tracks
                 .iter()
@@ -59,6 +63,7 @@ impl MPDClient {
                     .split_once("\n")
                     .unwrap()
                     .0;
+                debug!("Player in state {player_state}");
 
                 if player_state == "stop" {
                     self.send_command("play 0\n".to_string());
@@ -69,6 +74,7 @@ impl MPDClient {
     }
 
     pub(crate) fn send_command(&mut self, command: String) -> Option<String> {
+        debug!("Sending MPD command {}", command.trim());
         self.stream.write_all(command.as_bytes()).unwrap();
         self.stream.flush().unwrap();
         let recv = self.reader.fill_buf().unwrap().to_vec();
@@ -78,8 +84,10 @@ impl MPDClient {
         match msg.strip_suffix("OK\n") {
             Some(val) => {
                 if val.is_empty() {
+                    trace!("Response for {command} was OK with no additional content");
                     None
                 } else {
+                    trace!("Response for {command} was OK with {val}");
                     Some(val.to_string())
                 }
             }

@@ -36,5 +36,5 @@ time | song_id (fk->tracks)
 - [ ] stats (WIP)
     - [ ]
 - [ ] General
-    - [ ] Logging
+    - [x] Logging
     - [ ] Better error handling

@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use log::info;
 use rusqlite::Connection;
 use std::{env, fs};
 
@@ -40,6 +41,8 @@ enum SurpriseMeCommand {
 }
 
 fn main() -> std::io::Result<()> {
+    env_logger::init();
+    info!("MPD client initilized succesfully");
     let mut client = mpd_client::MPDClient::connect();
 
     let data_path = env::var("XDG_DATA_HOME")
@@ -51,6 +54,8 @@ fn main() -> std::io::Result<()> {
         Ok(_) => {}
         Err(e) => panic!("Failed db initialization: {e:?}"),
     }
+
+    info!("DB connection initilized succesfully");
 
     let args = Cli::parse();
 
@@ -65,14 +70,22 @@ fn main() -> std::io::Result<()> {
         Commands::SurpriseMe { opt } => match opt {
             SurpriseMeCommand::Album { count } => {
                 let tracks = surprise_me::create_album_playlist(&db, count);
-                client.add_to_queue(tracks);
+                client.add_to_queue(&tracks);
+                info!(
+                    "Album request - Successfully added {} tracks to playlist",
+                    tracks.len()
+                );
             }
             SurpriseMeCommand::Playlist {
                 target_length,
                 same_artist,
             } => {
                 let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist);
-                client.add_to_queue(tracks);
+                client.add_to_queue(&tracks);
+                info!(
+                    "Playlist request - Successfully added {} tracks to playlist",
+                    tracks.len()
+                );
             }
         },
     }
