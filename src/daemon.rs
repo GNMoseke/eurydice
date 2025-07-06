@@ -1,5 +1,4 @@
 use crate::mpd_client::MPDClient;
-use itertools::Itertools;
 use log::debug;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -10,7 +9,6 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
     let track_info: HashMap<String, String> = new_song
         .trim()
         .split('\n')
-        .dropping_back(1) // Drop the "OK"
         .map(|l| {
             l.split_once(':')
                 .map(|(a, b)| (a.trim().to_string(), b.trim().to_string()))

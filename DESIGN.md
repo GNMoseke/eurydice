@@ -33,6 +33,7 @@ time | song_id (fk->tracks)
     - [x] Queries for appropriate combo of least played
     - [x] creates playlist
     - [x] publishes to MPD
+    - [ ] add `--count` option to playlist as well?
 - [ ] stats (WIP)
     - [ ]
 - [ ] General
