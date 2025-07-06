@@ -1,11 +1,9 @@
 use clap::{Parser, Subcommand};
-use itertools::Itertools;
 use rusqlite::Connection;
-use std::io::{BufReader, prelude::*};
-use std::os::unix::net::UnixStream;
 use std::{env, fs};
 
 mod daemon;
+mod mpd_client;
 mod surprise_me;
 
 #[derive(Debug, Parser)]
@@ -42,24 +40,7 @@ enum SurpriseMeCommand {
 }
 
 fn main() -> std::io::Result<()> {
-    // NOTE: MUST use a unix socket to manage the queue locally. This is "documented" in the mpd
-    // protocal manual here: https://mpd.readthedocs.io/en/latest/client.html#introduction
-    // where "local socket" means "unix socket".
-    // See also: https://github.com/MusicPlayerDaemon/MPD/issues/2184
-    let mut stream = UnixStream::connect(
-        env::var("XDG_RUNTIME_DIR").unwrap_or("/run".to_string()) + "/mpd/socket",
-    )?;
-
-    let mut reader = BufReader::new(stream.try_clone().expect("MPD connection invalid"));
-    let recv: Vec<u8> = reader.fill_buf()?.to_vec();
-    reader.consume(recv.len());
-    let connect_ack = String::from_utf8(recv).expect("MPD connection invalid");
-
-    // NOTE: Protocol version agnostic here, see:
-    // https://mpd.readthedocs.io/en/latest/protocol.html#protocol-overview
-    if !connect_ack.contains("OK MPD") {
-        panic!("Unknown connection string: {}", connect_ack)
-    }
+    let mut client = mpd_client::MPDClient::connect();
 
     let data_path = env::var("XDG_DATA_HOME")
         .unwrap_or(env::var("HOME").expect("Home env var not set") + "/.local/share/")
@@ -68,7 +49,7 @@ fn main() -> std::io::Result<()> {
     let db = Connection::open(data_path + "db.db3").expect("Could not open db connection");
     match setup_db(&db) {
         Ok(_) => {}
-        Err(e) => panic!("Failed db initialization: {:?}", e),
+        Err(e) => panic!("Failed db initialization: {e:?}"),
     }
 
     let args = Cli::parse();
@@ -78,78 +59,25 @@ fn main() -> std::io::Result<()> {
             println!("stats")
         }
         Commands::Daemon => loop {
-            let new_song = daemon::wait_for_song_change(&mut stream);
+            let new_song = daemon::wait_for_song_change(&mut client);
             daemon::handle_song_change(new_song, &db);
         },
         Commands::SurpriseMe { opt } => match opt {
             SurpriseMeCommand::Album { count } => {
                 let tracks = surprise_me::create_album_playlist(&db, count);
-                tracks
-                    .iter()
-                    .for_each(|t| println!("{:?} - {:?}", t.title, t.album));
-                add_to_queue(tracks, &mut stream);
+                client.add_to_queue(tracks);
             }
             SurpriseMeCommand::Playlist {
                 target_length,
                 same_artist,
             } => {
                 let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist);
-                tracks
-                    .iter()
-                    .for_each(|t| println!("{:?} - {:?}", t.title, t.album));
-                add_to_queue(tracks, &mut stream);
+                client.add_to_queue(tracks);
             }
         },
     }
 
     Ok(())
-}
-
-fn add_to_queue(tracks: Vec<surprise_me::SelectedTrack>, stream: &mut UnixStream) {
-    stream.write_all("command_list_begin\n".as_bytes()).unwrap();
-    stream
-        .write_all(
-            (tracks
-                .iter()
-                .map(|t| "add \"".to_string() + &t.path + "\"")
-                .join("\n")
-                + "\n")
-                .as_bytes(),
-        )
-        .unwrap();
-    stream.write_all("status\n".as_bytes()).unwrap();
-    stream.write_all("command_list_end\n".as_bytes()).unwrap();
-    stream.flush().unwrap();
-
-    // Decide what to do based on player state after adding to the queue
-    // nothing in queue and eurydice is run: state == stop -> send play
-    // something is playing and eurydice is run: state == play -> do nothing
-    // something is paused and eurydice is run: state == pause -> do nothing
-
-    let mut reader = BufReader::new(stream.try_clone().unwrap());
-    let recv = reader.fill_buf().unwrap().to_vec();
-    reader.consume(recv.len());
-
-    // TODO: heavy handed split sequence, I could use a regex or split to a hashmap for the rest of
-    // the status info, but don't need it right now
-    let binding = String::from_utf8(recv).unwrap();
-    println!("{}", binding);
-    let status = binding
-        .split_once("state: ")
-        .unwrap()
-        .1
-        .split_once("\n")
-        .unwrap()
-        .0;
-
-    println!("{}", status);
-    if status == "stop" {
-        stream.write_all("play 0\n".as_bytes()).unwrap();
-        stream.flush().unwrap();
-        let recv = reader.fill_buf().unwrap().to_vec();
-        reader.consume(recv.len());
-        println!("{}", String::from_utf8(recv).unwrap())
-    }
 }
 
 fn setup_db(db: &Connection) -> std::result::Result<(), rusqlite::Error> {

@@ -1,9 +1,8 @@
+use crate::mpd_client::MPDClient;
 use itertools::Itertools;
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::env;
-use std::io::{BufReader, prelude::*};
-use std::os::unix::net::UnixStream;
 
 pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
     let track_info: HashMap<String, String> = new_song
@@ -16,6 +15,12 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
                 .unwrap()
         })
         .collect();
+
+    // queue is empty, we can just break
+    if track_info.is_empty() {
+        return;
+    }
+
     let mut song_change = db
         .prepare(
             "
@@ -26,9 +31,6 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
         )
         .unwrap();
 
-    // queue is empty, we can just break
-    if track_info.is_empty() { return }
-
     // FIXME: use `config` message here to pull the 'music_directory'
     let full_path = env::var("HOME").unwrap() + "/Music/" + &track_info["file"].to_string();
     song_change
@@ -36,7 +38,9 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
             [
                 &track_info["Title"],
                 &track_info["Artist"],
-                track_info.get("Album").unwrap_or(&"Unknown Album".to_string()),
+                track_info
+                    .get("Album")
+                    .unwrap_or(&"Unknown Album".to_string()),
                 &track_info["duration"],
                 &full_path,
             ],
@@ -50,34 +54,23 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
         .unwrap();
 }
 
-pub(crate) fn wait_for_song_change(stream: &mut UnixStream) -> String {
-    let mut reader = BufReader::new(stream.try_clone().unwrap());
-    stream.write_all("currentsong\n".as_bytes()).unwrap();
-    let recv = reader.fill_buf().unwrap().to_vec();
-    reader.consume(recv.len());
-    let mut current_song = String::from_utf8(recv).unwrap();
+pub(crate) fn wait_for_song_change(client: &mut MPDClient) -> String {
+    let mut current_song = match client.send_command("currentsong\n".to_string()) {
+        Some(song) => song,
+        None => "".to_string(),
+    };
     let prev_song = current_song.clone();
 
     // TODO: don't need the entire output of currentsong if I don't want to, can just use the first
     // line ('file' key)
     while prev_song == current_song {
-        stream.write_all("idle player\n".as_bytes()).unwrap();
-        let mut recv = reader.fill_buf().unwrap().to_vec();
-        reader.consume(recv.len());
-        let recv_str = String::from_utf8(recv.clone()).unwrap();
-
-        match recv_str {
-            val if val == *"changed: player\nOK\n" => {
-                stream.write_all("currentsong\n".as_bytes()).unwrap();
-                recv = reader.fill_buf().unwrap().to_vec();
-                reader.consume(recv.len());
-                current_song = String::from_utf8(recv).unwrap();
-                println!("{}", current_song);
-            }
-            val if val.contains("ACK") => {
-                println!("Unexpected MPD error: {:?}", val)
-            }
-            _ => panic!("Unknown update from MPD: {}", recv_str),
+        if let Some(val) = client.send_command("idle player\n".to_string())
+            && val == "changed: player\n"
+        {
+            current_song = match client.send_command("currentsong\n".to_string()) {
+                Some(song) => song,
+                None => "".to_string(),
+            };
         }
     }
 
