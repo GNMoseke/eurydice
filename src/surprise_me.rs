@@ -8,7 +8,6 @@ pub(crate) fn create_track_playlist(
 ) -> Vec<SelectedTrack> {
     // Default to one hour
     let target_length = target_length.unwrap_or(60.0) * 60.0;
-    println!("playlist of length {:?}", target_length);
 
     // TODO: I'm sure there's a way to do this greedy calculation in sqlite itself
     // FIXME: I've hardcoded 300 as the limit here intentionally since it gives me a decent
@@ -21,7 +20,7 @@ pub(crate) fn create_track_playlist(
     // skews the average.
     let query_str =
         "select * from
-            (select title,artist,album,path,lengthseconds from tracks where playcount <= (select avg(playcount) from tracks) limit 300)
+            (select artist,path,lengthseconds from tracks where playcount <= (select avg(playcount) from tracks) limit 300)
         order by random()"
             .to_string();
 
@@ -29,11 +28,9 @@ pub(crate) fn create_track_playlist(
     let mut random_tracks: Vec<SelectedTrack> = query
         .query_map([], |row| {
             Ok(SelectedTrack {
-                title: row.get(0)?,
-                artist: row.get(1)?,
-                album: row.get(2)?,
-                path: row.get(3)?,
-                length: row.get(4)?,
+                artist: row.get(0)?,
+                path: row.get(1)?,
+                length: row.get(2)?,
             })
         })
         .unwrap()
@@ -65,7 +62,6 @@ pub(crate) fn create_track_playlist(
 pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<SelectedTrack> {
     // Default to one album
     let count = count.unwrap_or(1);
-    println!("playist with {:?} album(s)", count);
 
     // get a random set of low played albums
     let query_str = "select distinct album from tracks 
@@ -81,8 +77,7 @@ pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<
         .collect();
 
     // and now query for the actual tracks
-    let query_str = "select title,artist,album,path,lengthseconds from tracks where album in ("
-        .to_string()
+    let query_str = "select artist,path,lengthseconds from tracks where album in (".to_string()
         + &album_names
             .iter()
             .map(|a| "'".to_string() + a + "'")
@@ -92,11 +87,9 @@ pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<
         .unwrap()
         .query_map([], |row| {
             Ok(SelectedTrack {
-                title: row.get(0)?,
-                artist: row.get(1)?,
-                album: row.get(2)?,
-                path: row.get(3)?,
-                length: row.get(4)?,
+                artist: row.get(0)?,
+                path: row.get(1)?,
+                length: row.get(2)?,
             })
         })
         .unwrap()
@@ -106,9 +99,7 @@ pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<
 
 #[derive(Debug, Clone)]
 pub(crate) struct SelectedTrack {
-    pub(crate) title: String,
     artist: String,
-    pub(crate) album: String,
     pub(crate) path: String,
     length: f32,
 }
