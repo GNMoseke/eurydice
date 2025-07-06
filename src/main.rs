@@ -117,13 +117,39 @@ fn add_to_queue(tracks: Vec<surprise_me::SelectedTrack>, stream: &mut UnixStream
                 .as_bytes(),
         )
         .unwrap();
+    stream.write_all("status\n".as_bytes()).unwrap();
     stream.write_all("command_list_end\n".as_bytes()).unwrap();
     stream.flush().unwrap();
+
+    // Decide what to do based on player state after adding to the queue
+    // nothing in queue and eurydice is run: state == stop -> send play
+    // something is playing and eurydice is run: state == play -> do nothing
+    // something is paused and eurydice is run: state == pause -> do nothing
 
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let recv = reader.fill_buf().unwrap().to_vec();
     reader.consume(recv.len());
-    println!("{}", String::from_utf8(recv).unwrap())
+
+    // TODO: heavy handed split sequence, I could use a regex or split to a hashmap for the rest of
+    // the status info, but don't need it right now
+    let binding = String::from_utf8(recv).unwrap();
+    println!("{}", binding);
+    let status = binding
+        .split_once("state: ")
+        .unwrap()
+        .1
+        .split_once("\n")
+        .unwrap()
+        .0;
+
+    println!("{}", status);
+    if status == "stop" {
+        stream.write_all("play 0\n".as_bytes()).unwrap();
+        stream.flush().unwrap();
+        let recv = reader.fill_buf().unwrap().to_vec();
+        reader.consume(recv.len());
+        println!("{}", String::from_utf8(recv).unwrap())
+    }
 }
 
 fn setup_db(db: &Connection) -> std::result::Result<(), rusqlite::Error> {
