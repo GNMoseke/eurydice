@@ -4,6 +4,7 @@ use rusqlite::Connection;
 use std::{env, fs};
 
 mod daemon;
+mod stats;
 mod mpd_client;
 mod surprise_me;
 
@@ -83,9 +84,8 @@ fn main() -> std::io::Result<()> {
 
     match args.command {
         Commands::Stats => {
-            println!(
-                "Stats have not been implemented yet. Here's a free stat as pennance: only 7 people have run a marathon in 2:05 or less."
-            )
+            // TODO: pass params through for limit and unique etc
+            stats::print_stats_table(&db);
         }
         Commands::Daemon => loop {
             let new_song = daemon::wait_for_song_change(&mut client);
