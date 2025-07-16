@@ -31,7 +31,7 @@ fn most_played_track(db: &Connection, limit: u32, since: Option<String>) -> Stri
     let query = match since {
         None => "select artist,album,title,playcount from tracks order by playcount desc limit ?1"
             .to_string(),
-        Some(boundary) => todo!(),
+        Some(_boundary) => todo!(),
     };
     db.prepare(&query)
         .unwrap()

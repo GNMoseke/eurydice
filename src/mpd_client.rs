@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use log::{debug, trace};
 use std::env;
-use std::io::{prelude::*, BufReader};
+use std::io::{BufReader, prelude::*};
 use std::os::unix::net::UnixStream;
 
 use crate::surprise_me;
@@ -37,7 +37,7 @@ impl MPDClient {
         MPDClient { stream, reader }
     }
 
-    pub(crate) fn add_to_queue(&mut self, tracks: &Vec<surprise_me::SelectedTrack>) {
+    pub(crate) fn add_to_queue(&mut self, tracks: &[surprise_me::SelectedTrack]) {
         debug!("Adding {} tracks to queue", tracks.len());
         trace!("Adding {}", tracks.iter().map(|t| t.path.clone()).join(","));
         let command = "command_list_begin\n".to_owned()
