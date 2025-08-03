@@ -1,11 +1,11 @@
 use clap::{Parser, Subcommand};
-use log::info;
+use log::{error, info};
 use rusqlite::Connection;
 use std::{env, fs};
 
 mod daemon;
-mod stats;
 mod mpd_client;
+mod stats;
 mod surprise_me;
 
 #[derive(Debug, Parser)]
@@ -89,11 +89,16 @@ fn main() -> std::io::Result<()> {
         }
         Commands::Daemon => loop {
             let new_song = daemon::wait_for_song_change(&mut client);
-            daemon::handle_song_change(new_song, &db);
+            // This is *technically* recoverable (though the daemon will likely be in an unideal
+            // state). In the future could kill daemon after 10 song change failures in a row or
+            // something.
+            daemon::handle_song_change(new_song, &db)
+                .unwrap_or_else(|err| error!("Error during song change handle: {err:?}"))
         },
         Commands::SurpriseMe { opt } => match opt {
             SurpriseMeCommand::Album { count } => {
-                let tracks = surprise_me::create_album_playlist(&db, count);
+                let tracks = surprise_me::create_album_playlist(&db, count)
+                    .unwrap_or_else(|err| panic!("Error creating mixtape: {err:?}"));
                 client.add_to_queue(&tracks);
                 info!(
                     "Album request - Successfully added {} tracks to playlist",
@@ -104,7 +109,8 @@ fn main() -> std::io::Result<()> {
                 target_length,
                 same_artist,
             } => {
-                let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist);
+                let tracks = surprise_me::create_track_playlist(&db, target_length, same_artist)
+                    .unwrap_or_else(|err| panic!("Error creating mixtape: {err:?}"));
                 client.add_to_queue(&tracks);
                 info!(
                     "Playlist request - Successfully added {} tracks to playlist",

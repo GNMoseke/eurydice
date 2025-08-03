@@ -21,12 +21,15 @@ impl MPDClient {
         let stream = UnixStream::connect(
             env::var("XDG_RUNTIME_DIR").unwrap_or("/run".to_string()) + "/mpd/socket",
         )
-        .unwrap();
+        .unwrap_or_else(|err| panic!("Failed to connect to MPD socket: {err:?}"));
 
         let mut reader = BufReader::new(stream.try_clone().expect("MPD connection invalid"));
-        let recv: Vec<u8> = reader.fill_buf().unwrap().to_vec();
+        let recv: Vec<u8> = reader
+            .fill_buf()
+            .expect("MPD connection returned initial handshake")
+            .to_vec();
         reader.consume(recv.len());
-        let connect_ack = String::from_utf8(recv).expect("MPD connection invalid");
+        let connect_ack = String::from_utf8(recv).expect("MPD connection handshake readable");
 
         // NOTE: Protocol version agnostic here, see:
         // https://mpd.readthedocs.io/en/latest/protocol.html#protocol-overview
@@ -75,11 +78,11 @@ impl MPDClient {
 
     pub(crate) fn send_command(&mut self, command: String) -> Option<String> {
         debug!("Sending MPD command {}", command.trim());
-        self.stream.write_all(command.as_bytes()).unwrap();
-        self.stream.flush().unwrap();
-        let recv = self.reader.fill_buf().unwrap().to_vec();
+        self.stream.write_all(command.as_bytes()).ok()?;
+        self.stream.flush().ok()?;
+        let recv = self.reader.fill_buf().ok()?.to_vec();
         self.reader.consume(recv.len());
-        let msg = String::from_utf8(recv).unwrap();
+        let msg = String::from_utf8(recv).ok()?;
 
         match msg.strip_suffix("OK\n") {
             Some(val) => {

@@ -6,7 +6,7 @@ pub(crate) fn create_track_playlist(
     db: &Connection,
     target_length: Option<f32>,
     same_artist: bool,
-) -> Vec<SelectedTrack> {
+) -> Result<Vec<SelectedTrack>, rusqlite::Error> {
     // Default to one hour
     let target_length = target_length.unwrap_or(60.0) * 60.0;
 
@@ -29,7 +29,7 @@ pub(crate) fn create_track_playlist(
         order by random()"
             .to_string();
 
-    let mut query = db.prepare(query_str.as_str()).unwrap();
+    let mut query = db.prepare(query_str.as_str())?;
     let mut random_tracks: Vec<SelectedTrack> = query
         .query_map([], |row| {
             Ok(SelectedTrack {
@@ -37,8 +37,7 @@ pub(crate) fn create_track_playlist(
                 path: row.get(1)?,
                 length: row.get(2)?,
             })
-        })
-        .unwrap()
+        })?
         .flatten()
         .collect();
     trace!("All random tracks: {random_tracks:?}");
@@ -65,10 +64,13 @@ pub(crate) fn create_track_playlist(
         .map(|t| t.to_owned())
         .collect();
     trace!("Final track list: {tracks:?}");
-    tracks
+    Ok(tracks)
 }
 
-pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<SelectedTrack> {
+pub(crate) fn create_album_playlist(
+    db: &Connection,
+    count: Option<u16>,
+) -> Result<Vec<SelectedTrack>, rusqlite::Error> {
     // Default to one album
     let count = count.unwrap_or(1);
     debug!("Creating album playlist of {count}");
@@ -79,10 +81,9 @@ pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<
             order by random() limit ?1;"
         .to_string();
 
-    let mut query = db.prepare(query_str.as_str()).unwrap();
+    let mut query = db.prepare(query_str.as_str())?;
     let album_names: Vec<String> = query
-        .query_map([&count], |row| Ok(row.get(0).unwrap()))
-        .unwrap()
+        .query_map([&count], |row| row.get(0))?
         .flatten()
         .collect();
     trace!("Selected albums: {album_names:?}");
@@ -95,20 +96,18 @@ pub(crate) fn create_album_playlist(db: &Connection, count: Option<u16>) -> Vec<
             .join(",")
         + ")";
     let tracks = db
-        .prepare(query_str.as_str())
-        .unwrap()
+        .prepare(query_str.as_str())?
         .query_map([], |row| {
             Ok(SelectedTrack {
                 artist: row.get(0)?,
                 path: row.get(1)?,
                 length: row.get(2)?,
             })
-        })
-        .unwrap()
+        })?
         .flatten()
         .collect();
     trace!("Final track list: {tracks:?}");
-    tracks
+    Ok(tracks)
 }
 
 #[derive(Debug, Clone)]

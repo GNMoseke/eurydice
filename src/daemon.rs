@@ -1,10 +1,10 @@
 use crate::mpd_client::MPDClient;
-use log::debug;
+use log::{debug, warn};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::env;
 
-pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
+pub(crate) fn handle_song_change(new_song: String, db: &Connection) -> Result<(), rusqlite::Error> {
     debug!("Handling song change to {new_song}");
     let track_info: HashMap<String, String> = new_song
         .trim()
@@ -12,49 +12,48 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) {
         .map(|l| {
             l.split_once(':')
                 .map(|(a, b)| (a.trim().to_string(), b.trim().to_string()))
-                .unwrap()
+                .unwrap_or_else(|| {
+                    warn!("Failed to parse new track info from {new_song}");
+                    ("".to_string(), "".to_string())
+                })
         })
         .collect();
 
     // queue is empty, we can just break
     if track_info.is_empty() {
         debug!("Queue is empty, short-circuiting before DB write");
-        return;
+        return Ok(());
     }
 
-    let mut song_change = db
-        .prepare(
-            "
+    let mut song_change = db.prepare(
+        "
         INSERT INTO tracks(title,artist,album,lengthseconds,playcount,path)
         VALUES (?1, ?2, ?3, ?4, 1, ?5)
         ON CONFLICT(title,artist,album) DO UPDATE SET playcount=playcount+1
         RETURNING id",
-        )
-        .unwrap();
+    )?;
 
     // FIXME: use `config` message here to pull the 'music_directory'
     let full_path = env::var("HOME").unwrap() + "/Music/" + &track_info["file"].to_string();
-    song_change
-        .query_one(
-            [
-                &track_info["Title"],
-                &track_info["Artist"],
-                track_info
-                    .get("Album")
-                    .unwrap_or(&"Unknown Album".to_string()),
-                &track_info["duration"],
-                &full_path,
-            ],
-            |id| {
-                debug!("Track count update stored successfully");
-                let retid: i32 = id.get(0).unwrap();
-                db.execute("INSERT INTO history(songid) VALUES (?1)", [&retid])
-                    .unwrap();
-                Ok(())
-            },
-        )
-        .unwrap();
+    song_change.query_one(
+        [
+            &track_info["Title"],
+            &track_info["Artist"],
+            track_info
+                .get("Album")
+                .unwrap_or(&"Unknown Album".to_string()),
+            &track_info["duration"],
+            &full_path,
+        ],
+        |id| {
+            debug!("Track count update stored successfully");
+            let retid: i32 = id.get(0)?;
+            db.execute("INSERT INTO history(songid) VALUES (?1)", [&retid])?;
+            Ok(())
+        },
+    )?;
     debug!("Song history stored successfully");
+    Ok(())
 }
 
 pub(crate) fn wait_for_song_change(client: &mut MPDClient) -> String {
