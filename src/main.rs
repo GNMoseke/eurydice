@@ -124,16 +124,41 @@ fn main() -> std::io::Result<()> {
 }
 
 fn setup_db(db: &Connection) -> std::result::Result<(), rusqlite::Error> {
+    // NOTE: all IDs are stored as textual UUIDs
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS albums (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            artist TEXT
+        )",
+        (),
+    )?;
+
     db.execute(
         "CREATE TABLE IF NOT EXISTS tracks (
-            id INTEGER PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             title TEXT,
             artist TEXT,
-            album TEXT,
             lengthseconds REAL,
-            playcount INTEGER,
+            playcount INTEGER DEFAULT 0,
+            album_id uuid,
+            FOREIGN KEY (album_id) REFERENCES albums(id),
+            UNIQUE (title, artist, album_id)
+        )",
+        (),
+    )?;
+
+    // TODO: add remaining types
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS files (
             path TEXT,
-            UNIQUE (title, artist, album)
+            format TEXT CHECK (format IN ('flac', 'mp3', 'wav', 'opus')),
+            cover_path TEXT NULL DEFAULT NULL,
+            album_id TEXT NULL DEFAULT NULL,
+            track_id TEXT NULL DEFAULT NULL,
+            FOREIGN KEY (album_id) REFERENCES albums(id),
+            FOREIGN KEY (track_id) REFERENCES tracks(id),
+            PRIMARY KEY (path, format)
         )",
         (),
     )?;
@@ -141,8 +166,8 @@ fn setup_db(db: &Connection) -> std::result::Result<(), rusqlite::Error> {
     db.execute(
         "CREATE TABLE IF NOT EXISTS history (
             time DATETIME DEFAULT CURRENT_TIMESTAMP,
-            songid INTEGER,
-            FOREIGN KEY (songid) REFERENCES tracks(id)
+            track_id TEXT,
+            FOREIGN KEY (track_id) REFERENCES tracks(id)
         )",
         (),
     )?;
