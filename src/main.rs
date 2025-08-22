@@ -3,7 +3,10 @@ use log::{error, info};
 use rusqlite::Connection;
 use std::{env, fs};
 
+use crate::index::index_collection;
+
 mod daemon;
+mod index;
 mod mpd_client;
 mod stats;
 mod surprise_me;
@@ -35,6 +38,11 @@ enum Commands {
     Stats,
     #[command(about = "Start the eurydice daemon to record MPD play history.")]
     Daemon,
+    #[command(about = "Index the collection")]
+    Index {
+        #[arg(short, long, help = "Path to index at")]
+        path: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -72,7 +80,8 @@ fn main() -> std::io::Result<()> {
         .unwrap_or(env::var("HOME").expect("Home env var not set") + "/.local/share/")
         + "eurydice/";
     fs::create_dir_all(&data_path)?;
-    let db = Connection::open(data_path + "db.db3").expect("Could not open db connection");
+    // FIXME: change back to correct path
+    let db = Connection::open(data_path + "db-new.db3").expect("Could not open db connection");
     match setup_db(&db) {
         Ok(_) => {}
         Err(e) => panic!("Failed db initialization: {e:?}"),
@@ -87,6 +96,10 @@ fn main() -> std::io::Result<()> {
             // TODO: pass params through for limit and unique etc
             stats::print_stats_table(&db);
         }
+        Commands::Index { path } => match path {
+            None => todo!("need to support config file path here"),
+            Some(p) => index_collection(p, &db).unwrap(),
+        },
         Commands::Daemon => loop {
             let new_song = daemon::wait_for_song_change(&mut client);
             // This is *technically* recoverable (though the daemon will likely be in an unideal

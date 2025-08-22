@@ -10,17 +10,23 @@ depending on target length)
   table
 * `daemon`: start the daemon half
 
-# SQL Schema
-`tracks` table:
+# Indexing
+```sh
+eurydice index --music-dir [optional path]
+eurydice list-collection --output summary # default
+eurydice list-collection --output rofi
+eurydice list-collection --output detailed
 
-```
-id | title | artist | album | lengthseconds | playcount | path
+# might need this command to leverage with rofi - basically just passes through to MPC
+eurydice queue album [foo]
+eurydice queue track [bar]
+eurydice queue playlist [baz]
 ```
 
-`history` table:
-```
-time | song_id (fk->tracks)
-```
+## TODO
+- [ ] How to handle playlists?
+- [ ] Should the daemon intelligently re-index is the background when the music subdir
+changes?
 
 
 
@@ -36,6 +42,8 @@ time | song_id (fk->tracks)
 - [>] stats (Eternal WIP)
 - [ ] General
     - [x] Logging
-    - [ ] Better error handling
-    - [ ] Add config (ignore certain music subdirs in daemon mode, etc)
+    - [x] Better error handling
+    - [ ] Add config (ignore certain music subdirs in daemon mode, set music dir, etc)
     - [ ] [shell completions](https://docs.rs/clap_complete/latest/clap_complete/)
+- [ ] Quick way to add a song to a "favorites" playlist (could also do this in my eww
+widget)

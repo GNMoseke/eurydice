@@ -76,6 +76,10 @@ impl MPDClient {
         }
     }
 
+    pub(crate) fn index_collection() -> () {
+
+    }
+
     pub(crate) fn send_command(&mut self, command: String) -> Option<String> {
         debug!("Sending MPD command {}", command.trim());
         self.stream.write_all(command.as_bytes()).ok()?;

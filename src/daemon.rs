@@ -25,6 +25,8 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) -> Result<()
         return Ok(());
     }
 
+    // FIXME: this is now going to have to just update the count, since we should have all the
+    // tracks indexed at this point
     let mut song_change = db.prepare(
         "
         INSERT INTO tracks(title,artist,album,lengthseconds,playcount,path)
