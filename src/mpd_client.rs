@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use std::env;
 use std::io::{BufReader, prelude::*};
 use std::os::unix::net::UnixStream;
@@ -57,7 +57,7 @@ impl MPDClient {
                 // nothing in queue and eurydice is run: state == stop -> send play
                 // something is playing and eurydice is run: state == play -> do nothing
                 // something is paused and eurydice is run: state == pause -> do nothing
-                // TODO: heavy handed split sequence, I could use a regex or split to a hashmap for the rest of
+                // TODO: heavy handed split sequence, I could use a regex split to a hashmap for the rest of
                 // the status info, but don't need it right now
                 let player_state = status
                     .split_once("state: ")
@@ -80,21 +80,25 @@ impl MPDClient {
         debug!("Sending MPD command {}", command.trim());
         self.stream.write_all(command.as_bytes()).ok()?;
         self.stream.flush().ok()?;
-        let recv = self.reader.fill_buf().ok()?.to_vec();
-        self.reader.consume(recv.len());
-        let msg = String::from_utf8(recv).ok()?;
 
-        match msg.strip_suffix("OK\n") {
-            Some(val) => {
-                if val.is_empty() {
-                    trace!("Response for {command} was OK with no additional content");
-                    None
-                } else {
-                    trace!("Response for {command} was OK with {val}");
-                    Some(val.to_string())
+        let mut full_msg = String::new();
+        loop {
+            let mut curr_line = String::new();
+            _ = self.reader.read_line(&mut curr_line);
+            match curr_line {
+                val if val == "OK\n" => {
+                    trace!("Response for {command} was OK");
+                    break;
                 }
-            }
-            None => panic!("Unexpected response from MPD: {msg:?}"),
+                // FIXME: regex for proper ACK [error@command_listNum] otherwise this matches
+                // things with the word BLACK in all caps for example
+                val if val.ends_with("ACK [") => {
+                    error!("Failed response for {command}: {val}");
+                    break;
+                }
+                val => full_msg += &val,
+            };
         }
+        Some(full_msg)
     }
 }
