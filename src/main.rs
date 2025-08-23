@@ -3,6 +3,9 @@ use log::{error, info};
 use rusqlite::Connection;
 use std::{env, fs};
 
+use crate::collection::CollectionFormat;
+
+mod collection;
 mod daemon;
 mod mpd_client;
 mod stats;
@@ -35,6 +38,11 @@ enum Commands {
     Stats,
     #[command(about = "Start the eurydice daemon to record MPD play history.")]
     Daemon,
+    #[command(about = "collection information")]
+    Collection {
+        #[arg(short, long, help = "Output Format")]
+        format: Option<CollectionFormat>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -87,6 +95,16 @@ fn main() -> std::io::Result<()> {
             // TODO: pass params through for limit and unique etc
             stats::print_stats_table(&db);
         }
+        Commands::Collection { format } => match format {
+            Some(format) => println!(
+                "{}",
+                collection::collection_information(&mut client, format)
+            ),
+            None => println!(
+                "{}",
+                collection::collection_information(&mut client, CollectionFormat::Summary)
+            ),
+        },
         Commands::Daemon => loop {
             let new_song = daemon::wait_for_song_change(&mut client);
             // This is *technically* recoverable (though the daemon will likely be in an unideal

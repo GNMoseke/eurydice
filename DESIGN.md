@@ -9,6 +9,8 @@ depending on target length)
 * `stats`: More stats breakdown about most played tracks, artists, albums, etc in a small
   table
 * `daemon`: start the daemon half
+* `collection`: info about music collection (basically wrapper for MPD commands)
+    * `--ouput [summary (default) | rofi | detailed]`
 
 # SQL Schema
 `tracks` table:
@@ -37,5 +39,8 @@ time | song_id (fk->tracks)
 - [ ] General
     - [x] Logging
     - [ ] Better error handling
-    - [ ] Add config (ignore certain music subdirs in daemon mode, etc)
+    - [!] Add config (ignore certain music subdirs in daemon mode, etc)
     - [ ] [shell completions](https://docs.rs/clap_complete/latest/clap_complete/)
+- [ ] Collection stats
+- [ ] Profile the performance of `collection`. I suspect the glob call and the mpc round
+trip are the most expensive pieces.
