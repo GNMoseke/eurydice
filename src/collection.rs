@@ -1,6 +1,5 @@
 use clap::ValueEnum;
 use colored::Colorize;
-use glob::glob;
 use itertools::Itertools;
 use log::warn;
 use serde::Serialize;
@@ -228,12 +227,12 @@ fn parse_info(
             let dir_path_string = album_dir_path.to_str().unwrap().to_string();
             // FIXME: use `config` message here to pull the 'music_directory' or pull from a eurydice
             // config file
-            let cover_path_glob = Path::new(&(env::var("HOME").unwrap() + "/Music/")).join(album_dir_path.join("**/cover.*"));
-            // PERF: this glob call is super expensive, ground 0 for opitimization
-            for entry in glob(cover_path_glob.to_str().unwrap()).unwrap() {
-                match entry {
-                    Ok(path) => cover_path = Some(path.to_str().unwrap().to_string()),
-                    Err(_) => continue
+            let cover_path_prefix = Path::new(&(env::var("HOME").unwrap() + "/Music/")).join(album_dir_path);
+            for ext in ["cover.jpg", "cover.jpeg", "cover.png"] {
+                let path = cover_path_prefix.join(ext);
+                if path.exists() {
+                    cover_path = Some(path.to_str().unwrap().to_string());
+                    break;
                 }
             }
             albums.insert(album_key, IndexedItem { path: dir_path_string, cover_path: cover_path.clone(), item_type: IndexedItemType::Album, artist: artist.to_string(), title: album_title.to_string() });
