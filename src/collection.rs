@@ -1,6 +1,5 @@
 use clap::ValueEnum;
 use colored::Colorize;
-use glob::glob;
 use itertools::Itertools;
 use log::warn;
 use serde::Serialize;
@@ -107,7 +106,7 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
             (
                 s.replace("-", " ").to_uppercase(),
                 IndexedItem {
-                    path: s.trim_start_matches("playlist: ").to_string(),
+                    path: "mpc load ".to_string() + s.trim_start_matches("playlist: "),
                     // FIXME: use `config` message here to pull the 'music_directory' or pull from a eurydice
                     // config file
                     cover_path: Some(env::var("HOME").unwrap() + "/Music/playlist-icon.png"),
@@ -194,7 +193,6 @@ fn parse_info(
 
         // NOTE: have to handle both Artist and AlbumArtist tags here. Some tracks have one or
         // the other, some have both. Take the first one we find.
-        // composers.
         let mut track_key = "TRACK: ".to_string();
         let mut album_key = "ALBUM: ".to_string();
         let artist = match (track_info.get("AlbumArtist"), track_info.get("Artist")) {
@@ -205,14 +203,17 @@ fn parse_info(
 
         track_key += artist;
         track_key += " - ";
+        // FIXME: this will result in multiple entries for the same album when the album has
+        // multiple artists (soundtrack composers mostly). Can be fixed with a "Display name"
+        // property and keying only off album name.
+        album_key += artist;
+        album_key += " - ";
 
         // TODO: this does some weird stuff with singles where they are indexed as both a track
         // (ok) and an "Unknown" album. Not hugely annoying right now but to be aware of.
         let track_title = track_info.get("Title").unwrap_or(&unknown);
         let album_title = track_info.get("Album").unwrap_or(&unknown);
         track_key += track_title;
-        // FIXME: this isn't perfect, albums with identical names will conflict. This is a low
-        // enough probability that I am choosing to ignore it for now.
         album_key += album_title;
 
         let file_path = track_info.get("file").unwrap_or_else(|| {
@@ -228,12 +229,12 @@ fn parse_info(
             let dir_path_string = album_dir_path.to_str().unwrap().to_string();
             // FIXME: use `config` message here to pull the 'music_directory' or pull from a eurydice
             // config file
-            let cover_path_glob = Path::new(&(env::var("HOME").unwrap() + "/Music/")).join(album_dir_path.join("**/cover.*"));
-            // PERF: this glob call is super expensive, ground 0 for opitimization
-            for entry in glob(cover_path_glob.to_str().unwrap()).unwrap() {
-                match entry {
-                    Ok(path) => cover_path = Some(path.to_str().unwrap().to_string()),
-                    Err(_) => continue
+            let cover_path_prefix = Path::new(&(env::var("HOME").unwrap() + "/Music/")).join(album_dir_path);
+            for ext in ["cover.jpg", "cover.jpeg", "cover.png"] {
+                let path = cover_path_prefix.join(ext);
+                if path.exists() {
+                    cover_path = Some(path.to_str().unwrap().to_string());
+                    break;
                 }
             }
             albums.insert(album_key, IndexedItem { path: dir_path_string, cover_path: cover_path.clone(), item_type: IndexedItemType::Album, artist: artist.to_string(), title: album_title.to_string() });
