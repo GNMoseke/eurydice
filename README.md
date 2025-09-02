@@ -8,6 +8,8 @@ For all options, run `eurydice --help`.
 
 # Installing
 > [!important]
+> **MSRV:** 
+>
 > This *requires* rust 1.88.0 or later to compile due to the use of some `if let`
 > constructions. See [issue](https://github.com/rust-lang/rust/issues/53667).
 
@@ -39,6 +41,10 @@ cp $XDG_DATA_HOME/.local/share/eurydice/db.db3 ~/eurydice-db.db3.bak
 > for the fallback paths.
 
 # Caveats
+> [!tip]
+> "Hey! This is just shitty [myMPD](https://github.com/jcorporation/myMPD)!
+> Correct.
+
 I built Eurydice for my own personal use, and as such it's pretty tailored in on how I use
 MPD and organize my music library. Feel free to hack on it and submit a PR if you want it
 to do something else!
@@ -57,3 +63,13 @@ service with:
 ```sh
 journalctl --user -xeu eurydice.service
 ```
+
+> [!note]
+> MPD [pretty explicitly](https://mpd.readthedocs.io/en/latest/protocol.html#the-music-database)
+> recommends not having a sidecar database and just using the MPD one. That's what
+> eurydice does for *most* things, but why follow documentation when sqlite do trick. So there
+> is a very small sidecar db here that exists purely for play history.
+>
+> In the future I may move over to [stickers](https://mpd.readthedocs.io/en/latest/protocol.html#stickers)
+> to keep everything in MPD, but using sqlite for this allows me to track a full
+> timestamped play history, not just the number of times each track has been played.

@@ -2,9 +2,13 @@ use crate::mpd_client::MPDClient;
 use log::{debug, warn};
 use rusqlite::Connection;
 use std::collections::HashMap;
-use std::env;
+use std::path::Path;
 
-pub(crate) fn handle_song_change(new_song: String, db: &Connection) -> Result<(), rusqlite::Error> {
+pub(crate) fn handle_song_change(
+    new_song: String,
+    db: &Connection,
+    music_dir: &Path,
+) -> Result<(), rusqlite::Error> {
     debug!("Handling song change to {new_song}");
     let track_info: HashMap<String, String> = new_song
         .trim()
@@ -33,8 +37,11 @@ pub(crate) fn handle_song_change(new_song: String, db: &Connection) -> Result<()
         RETURNING id",
     )?;
 
-    // FIXME: use `config` message here to pull the 'music_directory'
-    let full_path = env::var("HOME").unwrap() + "/Music/" + &track_info["file"].to_string();
+    let full_path = music_dir
+        .join(&track_info["file"])
+        .to_str()
+        .unwrap()
+        .to_string();
     song_change.query_one(
         [
             &track_info["Title"],
