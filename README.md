@@ -36,13 +36,14 @@ cp $XDG_DATA_HOME/.local/share/eurydice/db.db3 ~/eurydice-db.db3.bak
 ```
 
 > [!note]
-> eurydice follows the [XDG base directory specification](https://specifications.freedesktop.org/basedir-spec/latest/)
+> Eurydice follows the [XDG base directory specification](https://specifications.freedesktop.org/basedir-spec/latest/)
 > as much as possible. Refer to the [environment variables section](https://specifications.freedesktop.org/basedir-spec/latest/#variables)
 > for the fallback paths.
 
 # Caveats
 > [!tip]
-> "Hey! This is just shitty [myMPD](https://github.com/jcorporation/myMPD)!
+> "Hey! This is just shitty [myMPD](https://github.com/jcorporation/myMPD)!"
+>
 > Correct.
 
 I built Eurydice for my own personal use, and as such it's pretty tailored in on how I use
@@ -67,7 +68,7 @@ journalctl --user -xeu eurydice.service
 > [!note]
 > MPD [pretty explicitly](https://mpd.readthedocs.io/en/latest/protocol.html#the-music-database)
 > recommends not having a sidecar database and just using the MPD one. That's what
-> eurydice does for *most* things, but why follow documentation when sqlite do trick. So there
+> Eurydice does for *most* things, but why follow documentation when sqlite do trick. So there
 > is a very small sidecar db here that exists purely for play history.
 >
 > In the future I may move over to [stickers](https://mpd.readthedocs.io/en/latest/protocol.html#stickers)
