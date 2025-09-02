@@ -3,7 +3,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use log::warn;
 use serde::Serialize;
-use std::{collections::HashMap, env, path::Path};
+use std::{collections::HashMap, path::Path};
 use tabled::{Table, builder::Builder};
 
 use crate::mpd_client::MPDClient;
@@ -34,8 +34,11 @@ struct IndexedItem {
     artist: String,
 }
 
-// FIXME: unwraps
-pub(crate) fn collection_information(client: &mut MPDClient, format: CollectionFormat) -> String {
+pub(crate) fn collection_information(
+    client: &mut MPDClient,
+    music_dir: &Path,
+    format: CollectionFormat,
+) -> String {
     // 1. find all flac, add to dict
     // 2. find everything else, add to dict
     // theoretically that keeps flac where possible and falls back to the other formats if
@@ -47,8 +50,8 @@ pub(crate) fn collection_information(client: &mut MPDClient, format: CollectionF
         .send_command("find \"(!(file contains \'.flac\'))\" sort AlbumSort\n".to_string())
         .unwrap();
 
-    let (flac_tracks, flac_albums) = parse_info(all_flac.trim().split("file:").collect());
-    let (mut tracks, mut albums) = parse_info(remainder.trim().split("file:").collect());
+    let (flac_tracks, flac_albums) = parse_info(all_flac.trim().split("file:").collect(), music_dir);
+    let (mut tracks, mut albums) = parse_info(remainder.trim().split("file:").collect(), music_dir);
 
     // NOTE: since extend overwrites existing keys with new values, we extend the lower quality
     // dict to upsert to the better quality tracks
@@ -59,7 +62,7 @@ pub(crate) fn collection_information(client: &mut MPDClient, format: CollectionF
         CollectionFormat::Summary => build_summary_table(tracks, albums).to_string(),
         CollectionFormat::Rofi => {
             tracks.extend(albums);
-            add_custom_items(client, &mut tracks);
+            add_custom_items(client, music_dir, &mut tracks);
 
             let rofi_strs: Vec<String> = tracks
                 .iter()
@@ -72,7 +75,7 @@ pub(crate) fn collection_information(client: &mut MPDClient, format: CollectionF
         }
         CollectionFormat::Json => {
             tracks.extend(albums);
-            add_custom_items(client, &mut tracks);
+            add_custom_items(client, music_dir, &mut tracks);
             serde_json::to_string(&tracks).unwrap()
         }
         CollectionFormat::Fixmes => {
@@ -92,7 +95,11 @@ pub(crate) fn collection_information(client: &mut MPDClient, format: CollectionF
     }
 }
 
-fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, IndexedItem>) {
+fn add_custom_items(
+    client: &mut MPDClient,
+    music_dir: &Path,
+    tracks: &mut HashMap<String, IndexedItem>,
+) {
     // NOTE: assumes playlist naming scheme with hyphen seperators
     let playlists: HashMap<String, IndexedItem> = client
         .send_command("listplaylists\n".to_string())
@@ -107,9 +114,13 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
                 s.replace("-", " ").to_uppercase(),
                 IndexedItem {
                     path: "mpc load ".to_string() + s.trim_start_matches("playlist: "),
-                    // FIXME: use `config` message here to pull the 'music_directory' or pull from a eurydice
-                    // config file
-                    cover_path: Some(env::var("HOME").unwrap() + "/Music/playlist-icon.png"),
+                    cover_path: Some(
+                        music_dir
+                            .join("playlist-icon.png")
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                    ),
                     item_type: IndexedItemType::Playlist,
                     title: s.to_string(),
                     artist: "".to_string(),
@@ -124,9 +135,7 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
         "EURYDICE: 3 Random Albums".to_string(),
         IndexedItem {
             path: "eurydice surprise-me album --count 3".to_string(),
-            // FIXME: use `config` message here to pull the 'music_directory' or pull from a eurydice
-            // config file
-            cover_path: Some(env::var("HOME").unwrap() + "/Music/eurydice.png"),
+            cover_path: Some(music_dir.join("eurydice.png").to_str().unwrap().to_string()),
             item_type: IndexedItemType::Playlist,
             title: "Eurydice: 3 Random Albums".to_string(),
             artist: "Eurydice".to_string(),
@@ -137,7 +146,7 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
         "EURYDICE: Random Album".to_string(),
         IndexedItem {
             path: "eurydice surprise-me album".to_string(),
-            cover_path: Some(env::var("HOME").unwrap() + "/Music/eurydice.png"),
+            cover_path: Some(music_dir.join("eurydice.png").to_str().unwrap().to_string()),
             item_type: IndexedItemType::Playlist,
             title: "Eurydice: Random Album".to_string(),
             artist: "Eurydice".to_string(),
@@ -147,7 +156,7 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
         "EURYDICE: Mixtape (1 Hour)".to_string(),
         IndexedItem {
             path: "eurydice surprise-me playlist".to_string(),
-            cover_path: Some(env::var("HOME").unwrap() + "/Music/eurydice.png"),
+            cover_path: Some(music_dir.join("eurydice.png").to_str().unwrap().to_string()),
             item_type: IndexedItemType::Playlist,
             title: "Eurydice: Mixtape (1 Hour)".to_string(),
             artist: "Eurydice".to_string(),
@@ -157,7 +166,7 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
         "EURYDICE: Mixtape (3 Hours)".to_string(),
         IndexedItem {
             path: "eurydice surprise-me playlist --target-length 180".to_string(),
-            cover_path: Some(env::var("HOME").unwrap() + "/Music/eurydice.png"),
+            cover_path: Some(music_dir.join("eurydice.png").to_str().unwrap().to_string()),
             item_type: IndexedItemType::Playlist,
             title: "Eurydice: Mixtape (3 Hours)".to_string(),
             artist: "Eurydice".to_string(),
@@ -167,6 +176,7 @@ fn add_custom_items(client: &mut MPDClient, tracks: &mut HashMap<String, Indexed
 
 fn parse_info(
     all_track_details: Vec<&str>,
+    music_dir: &Path,
 ) -> (HashMap<String, IndexedItem>, HashMap<String, IndexedItem>) {
     let mut tracks = HashMap::<String, IndexedItem>::new();
     let mut albums = HashMap::<String, IndexedItem>::new();
@@ -227,9 +237,7 @@ fn parse_info(
         let mut cover_path: Option<String> = None;
         if let Some(album_dir_path) = Path::new(file_path).parent() {
             let dir_path_string = album_dir_path.to_str().unwrap().to_string();
-            // FIXME: use `config` message here to pull the 'music_directory' or pull from a eurydice
-            // config file
-            let cover_path_prefix = Path::new(&(env::var("HOME").unwrap() + "/Music/")).join(album_dir_path);
+            let cover_path_prefix = music_dir.join(album_dir_path);
             for ext in ["cover.jpg", "cover.jpeg", "cover.png"] {
                 let path = cover_path_prefix.join(ext);
                 if path.exists() {
