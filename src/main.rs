@@ -75,6 +75,17 @@ fn main() -> std::io::Result<()> {
     env_logger::init();
     info!("MPD client initilized succesfully");
     let mut client = mpd_client::MPDClient::connect();
+    let config_response = client
+        .send_command("config\n".to_string())
+        .expect("MPD config message returned unexpected response");
+    let mpd_music_dir = config_response
+        .lines()
+        .next()
+        .expect("MPD config message returned no data")
+        .split(": ")
+        .last()
+        .expect("MPD config message did not contain music directory");
+    let music_dir = std::path::Path::new(&mpd_music_dir);
 
     let data_path = env::var("XDG_DATA_HOME")
         .unwrap_or(env::var("HOME").expect("Home env var not set") + "/.local/share/")
@@ -98,11 +109,15 @@ fn main() -> std::io::Result<()> {
         Commands::Collection { format } => match format {
             Some(format) => println!(
                 "{}",
-                collection::collection_information(&mut client, format)
+                collection::collection_information(&mut client, music_dir, format)
             ),
             None => println!(
                 "{}",
-                collection::collection_information(&mut client, CollectionFormat::Summary)
+                collection::collection_information(
+                    &mut client,
+                    music_dir,
+                    CollectionFormat::Summary
+                )
             ),
         },
         Commands::Daemon => loop {
@@ -110,7 +125,7 @@ fn main() -> std::io::Result<()> {
             // This is *technically* recoverable (though the daemon will likely be in an unideal
             // state). In the future could kill daemon after 10 song change failures in a row or
             // something.
-            daemon::handle_song_change(new_song, &db)
+            daemon::handle_song_change(new_song, &db, music_dir)
                 .unwrap_or_else(|err| error!("Error during song change handle: {err:?}"))
         },
         Commands::SurpriseMe { opt } => match opt {
