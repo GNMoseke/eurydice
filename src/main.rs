@@ -3,6 +3,9 @@ use log::{error, info};
 use rusqlite::Connection;
 use std::{env, fs};
 
+use crate::collection::CollectionFormat;
+
+mod collection;
 mod daemon;
 mod mpd_client;
 mod stats;
@@ -35,6 +38,11 @@ enum Commands {
     Stats,
     #[command(about = "Start the eurydice daemon to record MPD play history.")]
     Daemon,
+    #[command(about = "collection information")]
+    Collection {
+        #[arg(short, long, help = "Output Format")]
+        format: Option<CollectionFormat>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -67,6 +75,17 @@ fn main() -> std::io::Result<()> {
     env_logger::init();
     info!("MPD client initilized succesfully");
     let mut client = mpd_client::MPDClient::connect();
+    let config_response = client
+        .send_command("config\n".to_string())
+        .expect("MPD config message returned unexpected response");
+    let mpd_music_dir = config_response
+        .lines()
+        .next()
+        .expect("MPD config message returned no data")
+        .split(": ")
+        .last()
+        .expect("MPD config message did not contain music directory");
+    let music_dir = std::path::Path::new(&mpd_music_dir);
 
     let data_path = env::var("XDG_DATA_HOME")
         .unwrap_or(env::var("HOME").expect("Home env var not set") + "/.local/share/")
@@ -87,12 +106,26 @@ fn main() -> std::io::Result<()> {
             // TODO: pass params through for limit and unique etc
             stats::print_stats_table(&db);
         }
+        Commands::Collection { format } => match format {
+            Some(format) => println!(
+                "{}",
+                collection::collection_information(&mut client, music_dir, format)
+            ),
+            None => println!(
+                "{}",
+                collection::collection_information(
+                    &mut client,
+                    music_dir,
+                    CollectionFormat::Summary
+                )
+            ),
+        },
         Commands::Daemon => loop {
             let new_song = daemon::wait_for_song_change(&mut client);
             // This is *technically* recoverable (though the daemon will likely be in an unideal
             // state). In the future could kill daemon after 10 song change failures in a row or
             // something.
-            daemon::handle_song_change(new_song, &db)
+            daemon::handle_song_change(new_song, &db, music_dir)
                 .unwrap_or_else(|err| error!("Error during song change handle: {err:?}"))
         },
         Commands::SurpriseMe { opt } => match opt {
