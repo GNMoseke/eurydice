@@ -24,8 +24,6 @@ id | title | artist | album | lengthseconds | playcount | path
 time | song_id (fk->tracks)
 ```
 
-
-
 # TODO
 - [x] Daemon half
     - [x] monitors mpd and writes stats on song update
@@ -41,6 +39,7 @@ time | song_id (fk->tracks)
     - [ ] Better error handling
     - [!] Add config (ignore certain music subdirs in daemon mode, etc)
     - [ ] [shell completions](https://docs.rs/clap_complete/latest/clap_complete/)
-- [ ] Collection stats
-- [ ] Profile the performance of `collection`. I suspect the glob call and the mpc round
+- [x] Collection stats
+- [x] Profile the performance of `collection`. I suspect the glob call and the mpc round
 trip are the most expensive pieces.
+    * It was indeed the glob I am so smart
