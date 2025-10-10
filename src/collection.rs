@@ -79,7 +79,6 @@ pub(crate) fn collection_information(
             serde_json::to_string(&tracks).unwrap()
         }
         CollectionFormat::Fixmes => {
-            // TODO: albums without flac?
             let albums_without_cover = albums
                 .iter()
                 .filter(|(_, v)| v.cover_path.is_none())
@@ -231,8 +230,6 @@ fn parse_info(
             &unknown
         });
 
-        // NOTE: probably best to avoid using the MPD protocol `albumart` message since it returns
-        // raw bytes and I want the path to the actual image.
         // FIXME: unwraps
         let mut cover_path: Option<String> = None;
         if let Some(album_dir_path) = Path::new(file_path).parent() {
