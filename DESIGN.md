@@ -43,3 +43,4 @@ time | song_id (fk->tracks)
 - [x] Profile the performance of `collection`. I suspect the glob call and the mpc round
 trip are the most expensive pieces.
     * It was indeed the glob I am so smart
+- [ ] `neverplayed` to compare what's in collection with what's in play history

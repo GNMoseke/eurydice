@@ -8,6 +8,7 @@ use crate::collection::CollectionFormat;
 mod collection;
 mod daemon;
 mod mpd_client;
+mod never_played;
 mod stats;
 mod surprise_me;
 
@@ -18,7 +19,7 @@ mod surprise_me;
     long_about = "
 eurydice is a small sidecar client to MPD that simply records track listen history and can be used
 to generate a random playlist of less frequently played music, either as a \"mixtape\" of tracks or
-as entire albums. 
+as entire albums.
 "
 )]
 struct Cli {
@@ -36,6 +37,10 @@ enum Commands {
     },
     #[command(about = "Output some interesting stats about played tracks")]
     Stats,
+    #[command(
+        about = "List out tracks that are in the collection, but have no plays in the history."
+    )]
+    NeverPlayed,
     #[command(about = "Start the eurydice daemon to record MPD play history.")]
     Daemon,
     #[command(about = "collection information")]
@@ -106,6 +111,13 @@ fn main() -> std::io::Result<()> {
             // TODO: pass params through for limit and unique etc
             stats::print_stats_table(&db);
         }
+        Commands::NeverPlayed => match never_played::never_played(&db, &mut client, music_dir) {
+            Ok(tracks) => println!("{tracks}"),
+            Err(e) => {
+                println!("Could not find unplayed tracks");
+                error!("Error finding unplayed tracks: {e}")
+            }
+        },
         Commands::Collection { format } => match format {
             Some(format) => println!(
                 "{}",

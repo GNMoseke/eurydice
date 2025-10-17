@@ -26,12 +26,12 @@ enum IndexedItemType {
 }
 
 #[derive(Debug, Serialize)]
-struct IndexedItem {
+pub(crate) struct IndexedItem {
     path: String,
     cover_path: Option<String>,
     item_type: IndexedItemType,
-    title: String,
-    artist: String,
+    pub(crate) title: String,
+    pub(crate) artist: String,
 }
 
 pub(crate) fn collection_information(
@@ -39,24 +39,7 @@ pub(crate) fn collection_information(
     music_dir: &Path,
     format: CollectionFormat,
 ) -> String {
-    // 1. find all flac, add to dict
-    // 2. find everything else, add to dict
-    // theoretically that keeps flac where possible and falls back to the other formats if
-    // necessary
-    let all_flac = client
-        .send_command("find \"(file contains \'.flac\')\" sort AlbumSort\n".to_string())
-        .unwrap();
-    let remainder = client
-        .send_command("find \"(!(file contains \'.flac\'))\" sort AlbumSort\n".to_string())
-        .unwrap();
-
-    let (flac_tracks, flac_albums) = parse_info(all_flac.trim().split("file:").collect(), music_dir);
-    let (mut tracks, mut albums) = parse_info(remainder.trim().split("file:").collect(), music_dir);
-
-    // NOTE: since extend overwrites existing keys with new values, we extend the lower quality
-    // dict to upsert to the better quality tracks
-    tracks.extend(flac_tracks);
-    albums.extend(flac_albums);
+    let (mut tracks, albums) = build_collection_maps(client, music_dir);
 
     match format {
         CollectionFormat::Summary => build_summary_table(tracks, albums).to_string(),
@@ -92,6 +75,33 @@ pub(crate) fn collection_information(
                 + &albums_without_cover
         }
     }
+}
+
+pub(crate) fn build_collection_maps(
+    client: &mut MPDClient,
+    music_dir: &Path,
+) -> (HashMap<String, IndexedItem>, HashMap<String, IndexedItem>) {
+    // 1. find all flac, add to dict
+    // 2. find everything else, add to dict
+    // theoretically that keeps flac where possible and falls back to the other formats if
+    // necessary
+    let all_flac = client
+        .send_command("find \"(file contains \'.flac\')\" sort AlbumSort\n".to_string())
+        .unwrap();
+    let remainder = client
+        .send_command("find \"(!(file contains \'.flac\'))\" sort AlbumSort\n".to_string())
+        .unwrap();
+
+    let (flac_tracks, flac_albums) =
+        parse_info(all_flac.trim().split("file:").collect(), music_dir);
+    let (mut tracks, mut albums) = parse_info(remainder.trim().split("file:").collect(), music_dir);
+
+    // NOTE: since extend overwrites existing keys with new values, we extend the lower quality
+    // dict to upsert to the better quality tracks
+    tracks.extend(flac_tracks);
+    albums.extend(flac_albums);
+
+    (tracks, albums)
 }
 
 fn add_custom_items(
