@@ -34,7 +34,7 @@ enum Commands {
         #[command(subcommand)]
         opt: SurpriseMeCommand,
     },
-    #[command(about = "WIP")]
+    #[command(about = "Output some interesting stats about played tracks")]
     Stats,
     #[command(about = "Start the eurydice daemon to record MPD play history.")]
     Daemon,
